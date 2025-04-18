@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<link rel="icon" href="./yt.png" type="image/jpg">
+		<title>隨機播放清單</title>
+	</head>
+  <body>
+    <div id="player"></div><br>
+	
+	list_id <input id="list_id" type="text"><br>
+	API_key <input id="API_key" type="text"><br>
+	<input id="refresh" type="button" onclick="refreshList()" value="刷新（請等候幾秒）">
+
+	<script async src="https://www.youtube.com/iframe_api"></script>
+	
+    <script>
+		let video_record_str = localStorage.getItem("SaviorDT_YT_record");
+		let list_id = localStorage.getItem("list_id");
+		let API_key = localStorage.getItem("API_key");
+		let video_list_str = localStorage.getItem("video_list");
+
+		document.querySelector("#list_id").value = list_id ?? "";
+		document.querySelector("#API_key").value = API_key ?? "";
+
+		let video_record = JSON.parse(video_record_str);
+		let video_list = JSON.parse(video_list_str);
+		let this_video_id = "";
+		let play_failed = false;
+
+		if(video_record == null) {
+			video_record = {};
+		}
+		let my_promise = new Promise((resolve) => {resolve(video_list)});
+		if(video_list == null) {
+			video_list = [];
+			// var my_promise = fetchList("PLl-XJ4XhrOqwqnBJ1U08Dm19Ss3_EETyt");
+			my_promise = fetchList();
+		}
+		// let my_promise = fetch("https://jonathan-airline.com/ytdl/tony.php?id=PLl-XJ4XhrOqwqnBJ1U08Dm19Ss3_EETyt").then(res => res.json());
+		
+		var player;
+
+		function showThisInfo() {
+			console.log(`This video is played ${video_record[this_video_id]} times. And id is ${this_video_id}`);
+		}
+
+		function findMostPlayedTimes() {
+			let max_play = 0;
+			for(let k of Object.keys(video_record)) {
+				max_play = Math.max(max_play, video_record[k]);
+			}
+			return max_play;
+		}
+
+		function showTimeToAmount() {
+			let played_amount = Array(findMostPlayedTimes() + 1).fill(0);
+			let total_times = 0;
+			for(let k of video_list) {
+				if(video_record[k]) {
+					played_amount[video_record[k]]++;
+					total_times += video_record[k];
+				}
+				else {
+					played_amount[0]++;
+				}
+			}
+			console.log(`You have played ${total_times} videos. And here is amounts of played times`, played_amount);
+		}
+
+		function showAllInfo() {
+			console.log(`There are ${video_list.length} videos. The most played video is played ${findMostPlayedTimes()} times.`);
+			showTimeToAmount();
+			showThisInfo();
+		}
+
+		function recordVideo(video_id) {
+			if(video_id in video_record) {
+				video_record[video_id]++;
+			}
+			else {
+				video_record[video_id] = 1;
+			}
+		}
+
+		async function onYouTubeIframeAPIReady() {
+			video_list = await my_promise;
+			this_video_id = video_list[Math.floor(Math.random() * video_list.length)];
+			recordVideo(this_video_id);
+			player = new YT.Player('player', {
+				height: '390',
+				width: '640',
+				videoId: this_video_id,
+				playerVars: {
+					autoplay : 1
+				},
+				events: {
+					'onStateChange' : onPlayerStateChange
+				}
+			});
+		}
+
+		function onPlayerStateChange(event) {
+			if(event.data == 0) {
+				//document.querySelector('#txt').innerText = "done";
+				this_video_id = video_list[Math.floor(Math.random() * video_list.length)];
+				recordVideo(this_video_id);
+				player.loadVideoById(this_video_id);
+			}
+			else if(event.data == -1) {
+				play_failed = true;
+				setTimeout(() => {
+					if(play_failed) {
+						this_video_id = video_list[Math.floor(Math.random() * video_list.length)];
+						recordVideo(this_video_id);
+						player.loadVideoById(this_video_id);
+						play_failed = false;
+					}
+				}, 500);
+			}
+			else {
+				play_failed = false;
+			}
+		}
+		
+		window.onbeforeunload = function () {
+			localStorage.setItem("SaviorDT_YT_record", JSON.stringify(video_record));
+			localStorage.setItem("video_list", JSON.stringify(video_list ?? []));
+			if(document.querySelector("#list_id").value != "") {
+				localStorage.setItem("list_id", document.querySelector("#list_id").value);
+			}
+			if(document.querySelector("#API_key").value != "") {
+				localStorage.setItem("API_key", document.querySelector("#API_key").value);
+			}
+		};
+
+		async function fetchList() {
+			list_id = document.querySelector("#list_id").value;
+			API_key = document.querySelector("#API_key").value;
+
+			if(list_id == null || list_id == "") {
+				alert("請填入 list_id");
+				throw new Error("Missing required column.");
+			}
+			if(API_key == null || API_key == "") {
+				alert("請填入 API_key");
+				throw new Error("Missing required column.");
+			}
+
+
+
+			id_list = [];
+			
+			result = await fetch("https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=" 
+				+ list_id + "&key=" + API_key).then(res => res.json());
+
+			pushId(id_list, result);
+
+			while(result.nextPageToken !== undefined) {
+				result = await fetch("https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=" 
+				+ list_id + "&key=" + API_key
+				+ "&pageToken=" + result.nextPageToken).then(res => res.json());
+
+				pushId(id_list, result);
+			}
+
+			return id_list;
+		}
+
+		async function refreshList() {
+			try {
+				video_list = await fetchList();
+				alert("刷新成功，下一首歌即會生效！");
+			}
+			catch (error) {}
+		}
+
+		function pushId(id_list, result) {
+			for(item of result.items) {
+				id_list.push(item.snippet.resourceId.videoId);
+			}
+		}
+    </script>
+  </body>
+</html>

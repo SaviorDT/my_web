@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+</head>
+<body>
+  <input type='file' id='inp' multiple></input>
+  <button onclick="upload()">下載</button>
+  
+  <script>
+	async function upload() {
+		let canvas = await fileToCanvas();
+		let ctx = canvas.getContext("2d");
+		let image_data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		let color_data = image_data.data;
+		
+		for(let i=3; i<color_data.length; i+=4) {
+			if(color_data[i] != 255 && color_data[i] != 0) {
+				color_data[i] = 0;
+			}
+		}
+		
+		for(let i=3; i<image_data.data.length; i+=4) {
+			if(image_data.data[i] != 255 && image_data.data[i] != 0) {
+				console.log("wrong");
+				break;
+				image_data.data[i] = 0;
+			}
+		}
+		ctx.putImageData(image_data, 0, 0);
+		
+		download(canvas);
+	}
+	
+	async function fileToCanvas(){
+		let file_input = document.getElementById("inp");
+		let image = await fileToImage(file_input.files[0]);
+		let canvas = document.createElement('canvas');
+		
+		canvas.width = image.width;
+		canvas.height = image.height;
+		let ctx = canvas.getContext("2d");
+		ctx.drawImage(image,0,0);
+
+		return canvas;
+	}
+	
+	function fileToImage(file) {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+
+			reader.onload = async function(event) {
+				let img = new Image();
+				img.onload = function() {
+					resolve(img);
+				}
+				img.src = event.target.result;
+			};
+
+			reader.onerror = function(error) {
+				reject(error);
+			};
+
+			reader.readAsDataURL(file);
+		});
+	}
+	
+	function download(canvas) {
+		let link = document.createElement('a');
+		link.download = 'fixed_file.png';
+		link.href = canvas.toDataURL()
+		link.click();
+	}
+  </script>
+</body>
+</html>

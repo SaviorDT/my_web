@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+</head>
+<body>
+  <input type='file' id='inp' multiple></input>
+  <button onclick=upload()>上傳</button>
+  <br>
+  <br>
+  <a href="uploads/">查看所有檔案</a>
+  
+  <script>
+	async function upload() {
+		let inp = document.getElementById('inp');
+		let promises = [];
+		for(let file of inp.files) {
+			promises.push(uploadSingleFile(file));
+		}
+		
+		// alert("正在上傳中，請點擊確認然後等上傳成功的框框跳出來")
+		let results = await Promise.all(promises);
+		let success = true;
+		for(let result of results) {
+			console.log(result);
+			if(!result.success) {
+				success = false;
+			}
+		}
+		
+		if(success) {
+			alert('所有符合大小的檔案均已上傳成功');
+		}
+		else {
+			alert('上傳失敗，我也沒想過有失敗的可能性。\n總之打開f12看看控制台顯示了甚麼吧');
+		}
+	}
+
+	async function uploadSingleFile(file) {
+		return new Promise((resolve, reject) => {
+			let div = document.createElement('div');
+			document.body.append(div);
+			div.innerText = `${file.name} 目前進度: 0%`;
+
+			if(file.size / 1000 / 1000 > 400) {
+				resolve({
+					success: true,
+					status: -1,
+                    statusText: "檔案過大",
+					fileName: file.name
+				});
+				div.innerText = `${file.name} 檔案超過400MB，無法上傳。`;
+			}
+			else {
+				let data = new FormData();
+				data.append('file', file);
+
+				var xhr = new XMLHttpRequest();
+				xhr.open('POST', 'upload.php', true);
+		
+				xhr.upload.onprogress = function(e) {
+					if (e.lengthComputable) {
+						var percentComplete = (e.loaded / e.total) * 100;
+						div.innerText = `${file.name} 目前進度: ${percentComplete}%`;
+					}
+				};
+
+				xhr.onload = () => {
+				if (xhr.status >= 200 && xhr.status < 300) {
+					resolve({
+						success: true,
+						status: xhr.status,
+						statusText: xhr.statusText,
+						fileName: file.name
+					});
+				} else {
+					resolve({
+						success: false,
+						status: xhr.status,
+						statusText: xhr.statusText,
+						fileName: file.name
+					});
+				}};
+
+				xhr.onerror = () => {
+					resolve({
+						success: false,
+						status: xhr.status,
+						statusText: xhr.statusText,
+						fileName: file.name
+					});
+				};
+				xhr.send(data);
+			}
+		});
+	}
+  </script>
+</body>
+</html>
