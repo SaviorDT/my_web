@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>老虎機計算機</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <div class="container py-5">
+            <h1 class="mb-4 text-center">老虎機機率模擬計算機</h1>
+            <form id="simForm" class="row g-3 mb-4">
+                <div class="col-md-2">
+                    <label for="prob10" class="form-label">10倍機率</label>
+                    <input type="number" step="0.0001" min="0" max="1" class="form-control" id="prob10" value="0.01" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="prob5" class="form-label">5倍機率</label>
+                    <input type="number" step="0.0001" min="0" max="1" class="form-control" id="prob5" value="0.02" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="prob3" class="form-label">3倍機率</label>
+                    <input type="number" step="0.0001" min="0" max="1" class="form-control" id="prob3" value="0.03" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="prob2" class="form-label">2倍機率</label>
+                    <input type="number" step="0.0001" min="0" max="1" class="form-control" id="prob2" value="0.04" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="prob80p" class="form-label">獲得80%獎池機率</label>
+                    <input type="number" step="0.0001" min="0" max="1" class="form-control" id="prob80p" value="0.001" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="prob10p" class="form-label">獲得10%獎池機率</label>
+                    <input type="number" step="0.0001" min="0" max="1" class="form-control" id="prob10p" value="0.005" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="trials" class="form-label">模擬次數</label>
+                    <input type="number" min="1" max="10000" class="form-control" id="trials" value="1000" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="guaranteeThreshold" class="form-label">保底門檻(金額)</label>
+                    <input type="number" min="1" class="form-control" id="guaranteeThreshold" value="500" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="guaranteeCount" class="form-label">保底次數</label>
+                    <input type="number" min="1" class="form-control" id="guaranteeCount" value="100" required>
+                </div>
+            </form>
+            <div class="mb-3 d-flex gap-2">
+                <button type="button" class="btn btn-primary" id="btn-fixed">固定投注100元</button>
+                <button type="button" class="btn btn-success" id="btn-random">隨機投注10~1000元</button>
+                <button type="button" class="btn btn-warning" id="btn-multi">30人多樣化投注</button>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <canvas id="resultChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+        <script>
+        const ctx = document.getElementById('resultChart').getContext('2d');
+        let chart;
+        function getProbabilities() {
+            return {
+                prob10: parseFloat(document.getElementById('prob10').value),
+                prob5: parseFloat(document.getElementById('prob5').value),
+                prob3: parseFloat(document.getElementById('prob3').value),
+                prob2: parseFloat(document.getElementById('prob2').value),
+                prob80p: parseFloat(document.getElementById('prob80p').value),
+                prob10p: parseFloat(document.getElementById('prob10p').value),
+                n: parseInt(document.getElementById('trials').value),
+                guaranteeThreshold: parseInt(document.getElementById('guaranteeThreshold').value),
+                guaranteeCount: parseInt(document.getElementById('guaranteeCount').value)
+            };
+        }
+        function simulate(getBetAmount) {
+            const {prob10, prob5, prob3, prob2, prob80p, prob10p, n, guaranteeThreshold, guaranteeCount} = getProbabilities();
+            const totalProb = prob10 + prob5 + prob3 + prob2 + prob80p + prob10p;
+            if(totalProb > 1) {
+                alert('所有有中機率加總不可超過1');
+                return;
+            }
+            let pool = 0;
+            let poolHistory = [];
+            let guaranteeAccum = 0;
+            for(let i=0; i<n; i++) {
+                const bet = getBetAmount();
+                pool += bet;
+                // 保底邏輯
+                if(bet >= guaranteeThreshold) {
+                    guaranteeAccum++;
+                }
+                let payout = 0;
+                let r = Math.random();
+                if(guaranteeAccum >= guaranteeCount) {
+                    payout = Math.floor(pool * 0.8);
+                    guaranteeAccum = 0;
+                } else if(r < prob10) payout = bet * 10;
+                else if(r < prob10 + prob5) payout = bet * 5;
+                else if(r < prob10 + prob5 + prob3) payout = bet * 3;
+                else if(r < prob10 + prob5 + prob3 + prob2) payout = bet * 2;
+                else if(r < prob10 + prob5 + prob3 + prob2 + prob80p) payout = Math.floor(pool * 0.8);
+                else if(r < prob10 + prob5 + prob3 + prob2 + prob80p + prob10p) payout = Math.floor(pool * 0.1);
+                pool -= payout;
+                poolHistory.push(pool);
+            }
+            if(chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: n}, (_, i) => i+1),
+                    datasets: [{
+                        label: '獎池累積金額',
+                        data: poolHistory,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13,110,253,0.1)',
+                        fill: true,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true },
+                        title: { display: true, text: '賭場獎池累積金額變化' }
+                    },
+                    scales: {
+                        y: { title: { display: true, text: '金額 (元)' } },
+                        x: { title: { display: true, text: '模擬次數' } }
+                    }
+                }
+            });
+        }
+        document.getElementById('btn-fixed').onclick = function() {
+            simulate(() => 100);
+        };
+        document.getElementById('btn-random').onclick = function() {
+            simulate(() => Math.floor(Math.random() * (1000 - 10 + 1)) + 10);
+        };
+        document.getElementById('btn-multi').onclick = function() {
+            // 產生30個玩家的投注金額
+            const players = [];
+            for(let i=0; i<30; i++) {
+                if(i === 0) players.push(100000); // 1人投注10萬
+                else if(i < 3) players.push(Math.floor(Math.random() * 91) + 10); // 2人投注10~100元
+                else if(i < 6) players.push(Math.floor(Math.random() * 90001) + 1000); // 3人投注1000~91000元
+                else players.push(Math.floor(Math.random() * 401) + 100); // 24人投注100~500元
+            }
+            simulate(() => players[Math.floor(Math.random() * players.length)]);
+        };
+        </script>
+    </body>
+</html>
