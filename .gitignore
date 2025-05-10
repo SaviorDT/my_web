@@ -1,3 +1,4 @@
 tools/uploads
 tmp
 block_dir
+extern_dir
