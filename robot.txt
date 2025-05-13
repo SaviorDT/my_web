@@ -1,0 +1,1 @@
+All things on https://github.com/SaviorDT/my_web.git excepts user uploaded files in /tools/uploads/
